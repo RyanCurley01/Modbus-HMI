@@ -19,6 +19,9 @@ namespace HMIProject
         private bool[] inputStates = Array.Empty<bool>();
         private ushort[] inputRegisters = Array.Empty<ushort>();
 
+        // Read types that are currently failing (so errors are logged once, not every poll)
+        private readonly HashSet<string> failedReads = new();
+
         // Makes sure only one Modbus request is in flight at a time (timer vs. buttons)
         private readonly SemaphoreSlim ioLock = new(1, 1);
         private readonly System.Windows.Forms.Timer pollTimer = new() { Interval = 1000 };
@@ -96,6 +99,7 @@ namespace HMIProject
 
         private async void Form1_Load(object? sender, EventArgs e)
         {
+            // Step 1: connect. Only a failure HERE means "not connected".
             try
             {
                 client = new TcpClient();
@@ -106,14 +110,31 @@ namespace HMIProject
                 master.Transport.ReadTimeout = 2000;
                 master.Transport.WriteTimeout = 2000;
                 Log($"Connected to {PlcIp}:{PlcPort}");
-
-                await RunExclusiveAsync(() => ReadAllAsync(logChanges: false));
             }
             catch (Exception ex)
             {
                 master = null;
                 Log($"ERROR connecting to {PlcIp}:{PlcPort} - {ex.Message}");
                 MessageBox.Show($"Could not connect to {PlcIp}:{PlcPort}.\n{ex.Message}");
+                return;
+            }
+
+            // Step 2: first read. A failure here (e.g. a point type not defined in the
+            // simulator) is logged, but the connection stays usable.
+            try
+            {
+                await RunExclusiveAsync(async () =>
+                {
+                    int succeeded = await ReadAllAsync(logChanges: false);
+                    if (succeeded == 0)
+                    {
+                        Log("WARNING: no data could be read. Check the simulator's point ranges and Device Id.");
+                    }
+                });
+            }
+            catch (Exception ex)
+            {
+                Log($"ERROR during first read - {ex.Message}");
             }
         }
 
@@ -128,7 +149,7 @@ namespace HMIProject
         {
             if (master == null)
             {
-                MessageBox.Show("Not connected to the Modbus device.");
+                MessageBox.Show("Not connected to the Modbus device. Restart the app after the simulator is running.");
                 return false;
             }
             return true;
@@ -171,7 +192,12 @@ namespace HMIProject
             if (!await ioLock.WaitAsync(0)) return;
             try
             {
-                await ReadAllAsync(logChanges: true);
+                int succeeded = await ReadAllAsync(logChanges: true);
+                if (succeeded == 0)
+                {
+                    Log("Nothing could be read, stopping polling");
+                    chkPoll.Checked = false;
+                }
             }
             catch (Exception ex)
             {
@@ -184,27 +210,66 @@ namespace HMIProject
             }
         }
 
-        // Reads coils, discrete inputs and input registers and refreshes the UI
-        private async Task ReadAllAsync(bool logChanges)
+        // Reads one data type. Returns null on failure and logs it once until it recovers,
+        // so one missing range in the simulator doesn't block the other reads.
+        private async Task<T[]?> TryReadAsync<T>(string name, Func<Task<T[]>> read)
         {
-            bool[] coils = await master!.ReadCoilsAsync(SlaveId, 0, PointCount);
-            bool[] inputs = await master.ReadInputsAsync(SlaveId, 0, PointCount);
-            ushort[] registers = await master.ReadInputRegistersAsync(SlaveId, 0, PointCount);
-
-            if (logChanges)
+            try
             {
-                LogChanges("Coil", coilStates, coils);
-                LogChanges("Input", inputStates, inputs);
-                LogChanges("Input Register", inputRegisters, registers);
+                T[] result = await read();
+                if (failedReads.Remove(name))
+                {
+                    Log($"OK {name} read recovered");
+                }
+                return result;
+            }
+            catch (Exception ex)
+            {
+                if (failedReads.Add(name))
+                {
+                    string reason = ex is SlaveException se
+                        ? $"Modbus exception code {se.SlaveExceptionCode} (is a {name} range defined in the simulator?)"
+                        : ex.Message;
+                    Log($"ERROR reading {name} - {reason}");
+                }
+                return null;
+            }
+        }
+
+        // Reads coils, discrete inputs and input registers and refreshes the UI.
+        // Returns how many of the three reads succeeded.
+        private async Task<int> ReadAllAsync(bool logChanges)
+        {
+            int succeeded = 0;
+
+            bool[]? coils = await TryReadAsync("Coils", () => master!.ReadCoilsAsync(SlaveId, 0, PointCount));
+            if (coils != null)
+            {
+                succeeded++;
+                if (logChanges) LogChanges("Coil", coilStates, coils);
+                coilStates = coils;
+                FillCombo(comboBox2, "Coil", coils);
             }
 
-            coilStates = coils;
-            inputStates = inputs;
-            inputRegisters = registers;
+            bool[]? inputs = await TryReadAsync("Discrete Inputs", () => master!.ReadInputsAsync(SlaveId, 0, PointCount));
+            if (inputs != null)
+            {
+                succeeded++;
+                if (logChanges) LogChanges("Input", inputStates, inputs);
+                inputStates = inputs;
+                FillCombo(comboBox1, "Input", inputs);
+            }
 
-            FillCombo(comboBox2, "Coil", coils);
-            FillCombo(comboBox1, "Input", inputs);
-            FillCombo(comboBox3, "Input Register", registers);
+            ushort[]? registers = await TryReadAsync("Input Registers", () => master!.ReadInputRegistersAsync(SlaveId, 0, PointCount));
+            if (registers != null)
+            {
+                succeeded++;
+                if (logChanges) LogChanges("Input Register", inputRegisters, registers);
+                inputRegisters = registers;
+                FillCombo(comboBox3, "Input Register", registers);
+            }
+
+            return succeeded;
         }
 
         // ---------- Button handlers ----------
