@@ -1,8 +1,6 @@
 # Modbus TCP HMI for Industrial Automation
 
-A Windows Forms HMI (human-machine interface) written in C# (.NET) that monitors and controls a Modbus TCP device. It reads and writes coils and registers, polls live values on a timer, and keeps a timestamped log of every write, read and input change.
-
-It was developed and tested against the **ModSim64** Modbus simulator. It has not yet been tested on physical PLC hardware.
+A Windows Forms HMI (human-machine interface) written in C# (.NET) that monitors and controls a Modbus TCP device. It reads and writes coils and registers, polls live values on a timer, and keeps a timestamped log of every write, read and input change. It was developed and tested against the **ModSim64** Modbus simulator.
 
 ## Screenshots
 
