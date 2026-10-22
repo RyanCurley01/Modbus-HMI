@@ -248,7 +248,7 @@ namespace HMIProject
                 succeeded++;
                 if (logChanges) LogChanges("Coil", coilStates, coils);
                 coilStates = coils;
-                FillCombo(comboBox2, "Coil", coils);
+                FillCombo(comboBox1, "Coil", coils);
             }
 
             bool[]? inputs = await TryReadAsync("Discrete Inputs", () => master!.ReadInputsAsync(SlaveId, 0, PointCount));
@@ -257,7 +257,7 @@ namespace HMIProject
                 succeeded++;
                 if (logChanges) LogChanges("Input", inputStates, inputs);
                 inputStates = inputs;
-                FillCombo(comboBox1, "Input", inputs);
+                FillCombo(comboBox2, "Input", inputs);
             }
 
             ushort[]? registers = await TryReadAsync("Input Registers", () => master!.ReadInputRegistersAsync(SlaveId, 0, PointCount));
@@ -279,7 +279,7 @@ namespace HMIProject
         {
             if (!IsConnected()) return;
 
-            int selectedIndex = comboBox2.SelectedIndex;
+            int selectedIndex = comboBox1.SelectedIndex;
             if (selectedIndex < 0 || selectedIndex >= coilStates.Length)
             {
                 MessageBox.Show("Select a coil to toggle");
@@ -296,8 +296,8 @@ namespace HMIProject
                     await master!.WriteSingleCoilAsync(SlaveId, (ushort)selectedIndex, newState);
 
                     coilStates[selectedIndex] = newState;
-                    FillCombo(comboBox2, "Coil", coilStates);
-                    comboBox2.SelectedIndex = selectedIndex;
+                    FillCombo(comboBox1, "Coil", coilStates);
+                    comboBox1.SelectedIndex = selectedIndex;
 
                     Log($"WRITE Coil {selectedIndex} = {newState}");
                 });
@@ -346,7 +346,7 @@ namespace HMIProject
                 await RunExclusiveAsync(async () =>
                 {
                     inputStates = await master!.ReadInputsAsync(SlaveId, 0, PointCount);
-                    FillCombo(comboBox1, "Input", inputStates);
+                    FillCombo(comboBox2, "Input", inputStates);
                     Log($"READ Discrete Inputs 0-{PointCount - 1}");
                 });
             }
