@@ -10,25 +10,25 @@ It was developed and tested against the **ModSim64** Modbus simulator. It has no
 
 Toggling `Coil 0` and writing `1234` to a holding register. The log records both writes, and the values appear in the ModSim64 coil (`00001`) and holding register (`40001`) windows.
 
-!\[Writing a coil and a holding register](screenshots/01-write-coil-and-register.png)
+![Writing a coil and a holding register](screenshots/01-write-coil-and-register.png)
 
 ### Live polling: discrete input change
 
 With live polling on, a discrete input flipped in the simulator (`10002`, which is `Input 1` in the app) is picked up automatically and logged as a change.
 
-!\[Live polling detecting a discrete input change](screenshots/02-live-polling-discrete-input.png)
+![Live polling detecting a discrete input change](screenshots/02-live-polling-discrete-input.png)
 
 ### Live polling: input register change
 
 Changing input register `30001` in the simulator to `11111` is detected on the next poll and logged as `Input Register 0: 0 -> 11111`.
 
-!\[Live polling detecting an input register change](screenshots/03-live-polling-input-register.png)
+![Live polling detecting an input register change](screenshots/03-live-polling-input-register.png)
 
 ### Error handling
 
 When the required point ranges are missing from the simulator, the app logs each failure once, stops polling, and stays open instead of crashing.
 
-!\[Error handling when point ranges are missing](screenshots/04-error-handling.png)
+![Error handling when point ranges are missing](screenshots/04-error-handling.png)
 
 ## Features
 
